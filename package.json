@@ -2,7 +2,7 @@
   "name": "codex-reviewer",
   "displayName": "Codex Reviewer",
   "description": "GitHub PR-style line comments on diffs, staged in VS Code and attached to your Codex chat with one click",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "NihilDigit",
   "author": "NihilDigit",
   "repository": {
@@ -13,6 +13,12 @@
   "icon": "assets/icon.png",
   "engines": {
     "vscode": "^1.96.0"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Codex Reviewer writes a workspace mirror file and updates the repository-local Git exclude file."
+    }
   },
   "categories": [
     "Other"
@@ -153,6 +159,7 @@
     "compile": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
     "watch": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
     "typecheck": "tsc --noEmit",
+    "test": "bun test",
     "package:marketplace": "cp README.md .README.md.bak; sed -i 's#https://raw.githubusercontent.com/NihilDigit/codex-reviewer/main/assets/flow.svg#assets/flow.png#' README.md; vsce package; rc=$?; mv .README.md.bak README.md; exit $rc",
     "vscode:prepublish": "npm run compile"
   },

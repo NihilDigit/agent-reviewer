@@ -41,9 +41,11 @@ export function formatEntry(entry: ReviewEntryData, index: number): string {
   parts.push('');
   parts.push(provenanceLine(entry));
   parts.push('');
-  parts.push('```' + entry.languageId);
+  const longestFence = Math.max(2, ...Array.from(entry.code.matchAll(/`+/g), (m) => m[0].length));
+  const fence = '`'.repeat(longestFence + 1);
+  parts.push(fence + entry.languageId);
   parts.push(entry.code.replace(/\n$/, ''));
-  parts.push('```');
+  parts.push(fence);
   for (const note of entry.notes) {
     parts.push('');
     for (const line of note.split('\n')) {

@@ -1,6 +1,8 @@
 src/**
+test/**
 node_modules/**
 tsconfig.json
 .gitignore
+.README.md.bak
 out/*.map
 assets/*.svg

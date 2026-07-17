@@ -5,16 +5,29 @@ import { addFileToCodexThread } from './codex';
 import { ensureGitExcluded } from './gitExclude';
 
 export function activate(context: vscode.ExtensionContext): void {
-  const staging = new Staging(() => vscode.workspace.workspaceFolders?.[0]);
+  const staging = new Staging((captured) => {
+    if (captured) {
+      return vscode.workspace.getWorkspaceFolder(vscode.Uri.file(captured.absPath));
+    }
+    const activeUri = vscode.window.activeTextEditor?.document.uri;
+    return (activeUri && vscode.workspace.getWorkspaceFolder(activeUri)) ??
+      vscode.workspace.workspaceFolders?.[0];
+  });
   const reviews = new ReviewController(staging);
 
   const syncGitExclude = (): void => {
     if (!vscode.workspace.getConfiguration('codexReviewer').get<boolean>('gitExclude', true)) {
       return;
     }
-    const uri = staging.pendingFileUri();
-    if (uri) {
-      void ensureGitExcluded(uri);
+    try {
+      const uri = staging.pendingFileUri();
+      if (uri) {
+        void ensureGitExcluded(uri);
+      }
+    } catch (err) {
+      void vscode.window.showErrorMessage(
+        `Codex Reviewer: invalid pending file — ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   };
   syncGitExclude();
@@ -32,13 +45,17 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     void vscode.commands.executeCommand('setContext', 'codexReviewer.hasStaged', n > 0);
   };
-  staging.onDidChange(updateStatus);
+  const stagingChange = staging.onDidChange(() => {
+    updateStatus();
+    syncGitExclude();
+  });
   updateStatus();
 
   context.subscriptions.push(
     staging,
     reviews,
     status,
+    stagingChange,
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (
         e.affectsConfiguration('codexReviewer.pendingFile') ||
@@ -52,12 +69,12 @@ export function activate(context: vscode.ExtensionContext): void {
         void vscode.window.showInformationMessage('Codex Reviewer: no staged review comments.');
         return;
       }
-      const uri = staging.pendingFileUri();
-      if (!uri) {
-        void vscode.window.showErrorMessage('Codex Reviewer: open a workspace folder first.');
-        return;
-      }
       try {
+        const uri = staging.pendingFileUri();
+        if (!uri) {
+          void vscode.window.showErrorMessage('Codex Reviewer: open a workspace folder first.');
+          return;
+        }
         await staging.flush();
         await addFileToCodexThread(uri);
       } catch (err) {
@@ -71,13 +88,19 @@ export function activate(context: vscode.ExtensionContext): void {
       reviews.clearAll();
     }),
     vscode.commands.registerCommand('codexReviewer.openPendingFile', async () => {
-      const uri = staging.pendingFileUri();
-      if (!uri) {
-        void vscode.window.showErrorMessage('Codex Reviewer: open a workspace folder first.');
-        return;
+      try {
+        const uri = staging.pendingFileUri();
+        if (!uri) {
+          void vscode.window.showErrorMessage('Codex Reviewer: open a workspace folder first.');
+          return;
+        }
+        await staging.flush();
+        await vscode.window.showTextDocument(uri, { preview: true });
+      } catch (err) {
+        void vscode.window.showErrorMessage(
+          `Codex Reviewer: failed to open pending reviews — ${err instanceof Error ? err.message : String(err)}`
+        );
       }
-      await staging.flush();
-      await vscode.window.showTextDocument(uri, { preview: true });
     })
   );
 }

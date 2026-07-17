@@ -51,7 +51,7 @@ npm run compile    # esbuild → out/extension.js
 npm run typecheck  # tsc --noEmit
 ```
 
-打包安装：`npx vsce package` 生成 `.vsix` 后用 `code --install-extension` 安装；也可以把 `package.json`、`out/`、`README.md` 直接复制到 `~/.vscode/extensions/NihilDigit.codex-reviewer-0.1.0/`。调试：在本目录按 `F5`，或执行 `code --extensionDevelopmentPath=<本目录> <某个工作区>`。
+打包安装：`npx vsce package` 生成 `.vsix` 后用 `code --install-extension` 安装；也可以把 `package.json`、`out/`、`README.md` 直接复制到 `~/.vscode/extensions/NihilDigit.codex-reviewer-0.2.0/`。调试：在本目录按 `F5`，或执行 `code --extensionDevelopmentPath=<本目录> <某个工作区>`。
 
 ## 操作方式
 

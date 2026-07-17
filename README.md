@@ -44,7 +44,7 @@ npm install
 npm run compile   # esbuild → out/extension.js
 ```
 
-Then package with `npx vsce package` and install via `code --install-extension`, or copy `package.json`, `out/`, and `README.md` into `~/.vscode/extensions/NihilDigit.codex-reviewer-0.1.0/`. For development, open this folder and press `F5`, or run `code --extensionDevelopmentPath=<this repo> <a workspace>`.
+Then package with `npx vsce package` and install via `code --install-extension`, or copy `package.json`, `out/`, and `README.md` into `~/.vscode/extensions/NihilDigit.codex-reviewer-0.2.0/`. For development, open this folder and press `F5`, or run `code --extensionDevelopmentPath=<this repo> <a workspace>`.
 
 ## Usage
 

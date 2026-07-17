@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 
 export interface CapturedContext {
   relativePath: string;
@@ -52,7 +53,7 @@ function findHeadSha(fsPath: string): string | undefined {
   try {
     const api = getGitApi();
     const repo = api?.repositories.find(
-      (r) => fsPath === r.rootUri.fsPath || fsPath.startsWith(r.rootUri.fsPath + '/')
+      (r) => fsPath === r.rootUri.fsPath || fsPath.startsWith(r.rootUri.fsPath + path.sep)
     );
     return repo?.state.HEAD?.commit;
   } catch {

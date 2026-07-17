@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { CapturedContext } from './capture';
 import { formatReviewFile } from './format';
+import { normalizePendingFilePath } from './paths';
 
 export interface StagedEntry {
   id: number;
@@ -17,16 +18,25 @@ export class Staging implements vscode.Disposable {
   private entries: StagedEntry[] = [];
   private nextId = 1;
   private writeTimer: ReturnType<typeof setTimeout> | undefined;
+  private writeQueue: Promise<void> = Promise.resolve();
+  private batchFolder: vscode.WorkspaceFolder | undefined;
   private readonly _onDidChange = new vscode.EventEmitter<void>();
   readonly onDidChange = this._onDidChange.event;
 
-  constructor(private readonly getWorkspaceFolder: () => vscode.WorkspaceFolder | undefined) {}
+  constructor(
+    private readonly getWorkspaceFolder: (
+      captured?: CapturedContext
+    ) => vscode.WorkspaceFolder | undefined
+  ) {}
 
   get count(): number {
     return this.entries.length;
   }
 
   addEntry(captured: CapturedContext, note: string): StagedEntry {
+    if (this.entries.length === 0) {
+      this.batchFolder = this.getWorkspaceFolder(captured);
+    }
     const entry: StagedEntry = { id: this.nextId++, captured, notes: [note] };
     this.entries.push(entry);
     this.changed();
@@ -72,13 +82,14 @@ export class Staging implements vscode.Disposable {
   }
 
   pendingFileUri(): vscode.Uri | undefined {
-    const folder = this.getWorkspaceFolder();
+    const folder = this.batchFolder ?? this.getWorkspaceFolder();
     if (!folder) {
       return undefined;
     }
-    const rel = vscode.workspace
+    const configuredPath = vscode.workspace
       .getConfiguration('codexReviewer')
       .get<string>('pendingFile', '.codex/pending-reviews.md');
+    const rel = normalizePendingFilePath(configuredPath);
     return vscode.Uri.joinPath(folder.uri, rel);
   }
 
@@ -87,15 +98,19 @@ export class Staging implements vscode.Disposable {
       clearTimeout(this.writeTimer);
       this.writeTimer = undefined;
     }
+    const content = formatReviewFile(
+      this.entries.map((e) => ({ ...e.captured, notes: e.notes }))
+    );
     const uri = this.pendingFileUri();
     if (!uri) {
       return;
     }
-    await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(uri, '..'));
-    const content = formatReviewFile(
-      this.entries.map((e) => ({ ...e.captured, notes: e.notes }))
-    );
-    await vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf8'));
+    const write = async (): Promise<void> => {
+      await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(uri, '..'));
+      await vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf8'));
+    };
+    this.writeQueue = this.writeQueue.catch(() => undefined).then(write);
+    await this.writeQueue;
   }
 
   private changed(): void {
@@ -104,7 +119,11 @@ export class Staging implements vscode.Disposable {
       clearTimeout(this.writeTimer);
     }
     this.writeTimer = setTimeout(() => {
-      void this.flush();
+      void this.flush().catch((err: unknown) => {
+        void vscode.window.showErrorMessage(
+          `Codex Reviewer: failed to update pending reviews — ${err instanceof Error ? err.message : String(err)}`
+        );
+      });
     }, 300);
   }
 
