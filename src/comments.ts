@@ -3,6 +3,7 @@ import { captureContext } from './capture';
 import { Staging, StagedEntry } from './staging';
 
 class ReviewComment implements vscode.Comment {
+  public contextValue?: string;
   constructor(
     public readonly id: string,
     public body: string | vscode.MarkdownString,
@@ -57,7 +58,8 @@ export class ReviewController implements vscode.Disposable {
       ),
       vscode.commands.registerCommand(
         'codexReviewer.saveComment',
-        (comment: ReviewComment) => this.saveComment(comment)
+        (input: { thread: vscode.CommentThread; commentUniqueId: number; text: string }) =>
+          this.saveComment(input)
       ),
       vscode.commands.registerCommand(
         'codexReviewer.deleteComment',
@@ -144,19 +146,28 @@ export class ReviewController implements vscode.Disposable {
     }
   }
 
-  private saveComment(comment: ReviewComment): void {
-    const thread = comment.parent;
-    const text = typeof comment.body === 'string' ? comment.body : comment.body.value;
-    comment.body = text;
-    comment.mode = vscode.CommentMode.Preview;
-    if (thread) {
-      const entry = this.threadEntries.get(thread);
-      const noteIndex = thread.comments.findIndex((c) => (c as ReviewComment).id === comment.id);
-      if (entry && noteIndex >= 0) {
-        this.staging.updateNote(entry.id, noteIndex, text);
-      }
-      thread.comments = [...thread.comments];
+  private saveComment(input: {
+    thread: vscode.CommentThread;
+    commentUniqueId: number;
+    text: string;
+  }): void {
+    const thread = input.thread;
+    // uniqueIdInThread is assigned by VS Code at runtime but not exposed on
+    // the public Comment type.
+    const noteIndex = thread.comments.findIndex(
+      (c) => (c as unknown as { uniqueIdInThread: number }).uniqueIdInThread === input.commentUniqueId
+    );
+    const comment = thread.comments[noteIndex] as ReviewComment | undefined;
+    if (!comment) {
+      return;
     }
+    comment.body = input.text;
+    comment.mode = vscode.CommentMode.Preview;
+    const entry = this.threadEntries.get(thread);
+    if (entry && noteIndex >= 0) {
+      this.staging.updateNote(entry.id, noteIndex, input.text);
+    }
+    thread.comments = [...thread.comments];
   }
 
   private deleteComment(comment: ReviewComment): void {
@@ -195,7 +206,7 @@ export class ReviewController implements vscode.Disposable {
 
   private makeComment(text: string, parent: vscode.CommentThread): ReviewComment {
     this.commentSeq += 1;
-    return new ReviewComment(
+    const comment = new ReviewComment(
       `c${this.commentSeq}`,
       text,
       vscode.CommentMode.Preview,
@@ -203,6 +214,9 @@ export class ReviewController implements vscode.Disposable {
       'staged',
       parent
     );
+    // Marks the note as editable; the Edit button is gated on this in package.json.
+    comment.contextValue = 'canEdit';
+    return comment;
   }
 
   dispose(): void {
